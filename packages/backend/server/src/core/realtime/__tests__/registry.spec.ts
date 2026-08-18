@@ -8,9 +8,10 @@ import { z } from 'zod';
 import { CANARY_CLIENT_VERSION_MAX_AGE_DAYS } from '../../../base';
 import { Flavor } from '../../../env';
 import { PublicDocMode } from '../../../models';
-import { CopilotEmbeddingRealtimeProvider } from '../../../plugins/copilot/context';
-import type { CopilotTranscriptionReader } from '../../../plugins/copilot/transcript';
-import { CopilotTranscriptRealtimeProvider } from '../../../plugins/copilot/transcript';
+import { CopilotEmbeddingRealtimeProvider } from '../../../plugins/copilot/embedding/realtime';
+import type { CopilotTranscriptionReader } from '../../../plugins/copilot/transcript/reader';
+import { CopilotTranscriptRealtimeProvider } from '../../../plugins/copilot/transcript/realtime';
+import type { CopilotTranscriptionRetryService } from '../../../plugins/copilot/transcript/retry';
 import type { CurrentUser } from '../../auth';
 import { CommentRealtimeProvider } from '../../comment/realtime';
 import { NotificationRealtimeProvider } from '../../notification/realtime';
@@ -40,7 +41,6 @@ import {
   realtimeDocShareStateRoom,
   realtimeNotificationRoom,
   realtimeTranscriptTaskRoom,
-  realtimeUserAccessTokensRoom,
   realtimeUserProfileRoom,
   realtimeUserSettingsRoom,
   realtimeWorkspaceAccessRoom,
@@ -298,7 +298,6 @@ test('room helpers produce stable realtime room names', t => {
   t.is(realtimeDocGrantsRoom('space', 'doc'), 'workspace:space:doc:doc:grants');
   t.is(realtimeUserProfileRoom('u1'), 'user:u1:profile');
   t.is(realtimeUserSettingsRoom('u1'), 'user:u1:settings');
-  t.is(realtimeUserAccessTokensRoom('u1'), 'user:u1:access-tokens');
   t.is(
     realtimeTranscriptTaskRoom('space', 'task'),
     'copilot:transcript:space:task'
@@ -447,7 +446,9 @@ test('front and sync realtime gateway required handlers are registered by lightw
   new CopilotTranscriptRealtimeProvider(
     {} as never,
     {} as never,
-    registry
+    {} as never,
+    registry,
+    {} as never
   ).onModuleInit();
   new QuotaStateRealtimeProvider(
     {} as never,
@@ -775,16 +776,6 @@ test('user realtime provider snapshots private profile settings and access token
     userFeature: {
       list: async () => ['administrator'],
     },
-    accessToken: {
-      list: async () => [
-        {
-          id: 'token',
-          name: 'Token',
-          createdAt: new Date('2026-01-01T00:00:00.000Z'),
-          expiresAt: null,
-        },
-      ],
-    },
   };
 
   new UserRealtimeProvider(models as never, registry).onModuleInit();
@@ -814,10 +805,6 @@ test('user realtime provider snapshots private profile settings and access token
     registry.getTopic('user.settings.changed').room(user, {}),
     realtimeUserSettingsRoom('u1')
   );
-  t.is(
-    registry.getTopic('user.access-tokens.changed').room(user, {}),
-    realtimeUserAccessTokensRoom('u1')
-  );
   t.deepEqual(await registry.getRequest('user.settings.get').handle(user, {}), {
     settings: {
       receiveInvitationEmail: true,
@@ -825,19 +812,6 @@ test('user realtime provider snapshots private profile settings and access token
       receiveCommentEmail: true,
     },
   });
-  t.deepEqual(
-    await registry.getRequest('user.access-tokens.get').handle(user, {}),
-    {
-      tokens: [
-        {
-          id: 'token',
-          name: 'Token',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          expiresAt: null,
-        },
-      ],
-    }
-  );
 });
 
 test('new realtime providers publish changed events from domain events', t => {
@@ -894,13 +868,6 @@ test('new realtime providers publish changed events from domain events', t => {
     userId: 'u2',
   });
 
-  const userProvider = new UserRealtimeProvider(
-    {} as never,
-    undefined,
-    publisher
-  );
-  userProvider.onUserAccessTokenCreated({ userId: 'u1' });
-
   t.deepEqual(
     published.map(args => args[0]),
     [
@@ -909,7 +876,6 @@ test('new realtime providers publish changed events from domain events', t => {
       'workspace.invite-link.changed',
       'doc.share-state.changed',
       'doc.grants.changed',
-      'user.access-tokens.changed',
     ]
   );
 });
@@ -1005,9 +971,8 @@ test('quota realtime provider exposes effective quota state snapshots', async t 
   );
 });
 
-test('copilot embedding realtime provider uses lightweight model reads', async t => {
+test('copilot embedding realtime provider uses native health and progress', async t => {
   const registry = new RealtimeRegistry();
-  const published: unknown[][] = [];
   const assertions: unknown[] = [];
   const ac = {
     user(userId: string) {
@@ -1025,24 +990,17 @@ test('copilot embedding realtime provider uses lightweight model reads', async t
       };
     },
   } as unknown as PermissionAccess;
-  const models = {
-    copilotWorkspace: {
-      checkEmbeddingAvailable: async () => true,
-      getEmbeddingStatus: async () => ({ total: 5, embedded: 3 }),
-    },
-    copilotContext: {
-      getConfig: async () => ({ workspaceId: 'space' }),
-    },
+  const embedding = {
+    health: async () => ({ enabled: true }),
+    progress: async () => ({ total: 5, embedded: 3 }),
   };
-  const publisher = {
-    publish: (...args: unknown[]) => published.push(args),
-  } as unknown as RealtimePublisher;
+  const config = { copilot: { enabled: true } };
 
   const provider = new CopilotEmbeddingRealtimeProvider(
     ac,
-    models as never,
+    embedding as never,
     registry,
-    publisher
+    config as never
   );
   provider.onModuleInit();
 
@@ -1055,23 +1013,21 @@ test('copilot embedding realtime provider uses lightweight model reads', async t
       embedded: 3,
     }
   );
+  config.copilot.enabled = false;
+  await t.throwsAsync(
+    registry
+      .getRequest('workspace.embedding.progress.get')
+      .handle(user, { workspaceId: 'space' }),
+    { message: 'Copilot is disabled.' }
+  );
   t.is(
     registry
       .getTopic('workspace.embedding.progress.changed')
       .room(user, { workspaceId: 'space' }),
     realtimeWorkspaceEmbeddingProgressRoom('space')
   );
-
-  await provider.onDocEmbedFinished({ contextId: 'context', docId: 'doc' });
-
   t.deepEqual(assertions, [
     { userId: 'u1', workspaceId: 'space', action: 'Workspace.Copilot' },
-  ]);
-  t.deepEqual(published[0], [
-    'workspace.embedding.progress.changed',
-    { workspaceId: 'space' },
-    { reason: 'finished' },
-    { room: realtimeWorkspaceEmbeddingProgressRoom('space') },
   ]);
 });
 
@@ -1104,12 +1060,14 @@ test('copilot transcript realtime provider registers task live query handlers', 
       return { id: taskId ?? blobId, status: 'finished', userId, workspaceId };
     },
   } as unknown as CopilotTranscriptionReader;
-
-  new CopilotTranscriptRealtimeProvider(
-    ac,
-    transcript,
-    registry
-  ).onModuleInit();
+  const retry = {
+    async retryTask(userId: string, workspaceId: string, taskId: string) {
+      return { id: taskId, status: 'running', userId, workspaceId };
+    },
+  } as unknown as CopilotTranscriptionRetryService;
+  new CopilotTranscriptRealtimeProvider(ac, transcript, retry, registry, {
+    copilot: { enabled: true },
+  } as never).onModuleInit();
 
   t.deepEqual(
     await registry.getRequest('copilot.transcript.task.get').handle(user, {
@@ -1125,7 +1083,22 @@ test('copilot transcript realtime provider registers task live query handlers', 
       },
     }
   );
+  t.deepEqual(
+    await registry.getRequest('copilot.transcript.task.retry').handle(user, {
+      workspaceId: 'space',
+      taskId: 'task',
+    }),
+    {
+      task: {
+        id: 'task',
+        status: 'running',
+        userId: 'u1',
+        workspaceId: 'space',
+      },
+    }
+  );
   t.deepEqual(assertions, [
+    { userId: 'u1', workspaceId: 'space', action: 'Workspace.Copilot' },
     { userId: 'u1', workspaceId: 'space', action: 'Workspace.Copilot' },
   ]);
 });
