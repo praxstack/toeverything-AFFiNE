@@ -439,7 +439,7 @@ __metadata:
     fuse.js: "npm:^7.0.0"
     graphemer: "npm:^1.4.0"
     graphql: "npm:^16.9.0"
-    happy-dom: "npm:^20.3.0"
+    happy-dom: "npm:^21.0.0"
     history: "npm:^5.3.0"
     idb: "npm:^8.0.0"
     image-blob-reduce: "npm:^4.1.0"
@@ -749,7 +749,7 @@ __metadata:
     eslint-plugin-react-hooks: "npm:^7.0.1"
     eslint-plugin-simple-import-sort: "npm:^12.1.1"
     eslint-plugin-sonarjs: "npm:^4.0.2"
-    happy-dom: "npm:^20.0.0"
+    happy-dom: "npm:^21.0.0"
     husky: "npm:^9.1.7"
     lint-staged: "npm:^16.0.0"
     msw: "npm:^2.13.2"
@@ -17257,6 +17257,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"buffer-image-size@npm:^0.6.4":
+  version: 0.6.4
+  resolution: "buffer-image-size@npm:0.6.4"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/82d4ca9bc8e71c9c0cbc74191d3613100d0a20dd21da018c6f373d7dc88ec4a9225eebe06c44a982de074f695402e81ab8a8daa40afce36b915042fa9fb32c52
+  languageName: node
+  linkType: hard
+
 "buffer@npm:^5.5.0":
   version: 5.7.1
   resolution: "buffer@npm:5.7.1"
@@ -22391,17 +22400,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"happy-dom@npm:^20.0.0, happy-dom@npm:^20.3.0":
-  version: 20.8.9
-  resolution: "happy-dom@npm:20.8.9"
+"happy-dom@npm:^21.0.0":
+  version: 21.0.4
+  resolution: "happy-dom@npm:21.0.4"
   dependencies:
     "@types/node": "npm:>=20.0.0"
     "@types/whatwg-mimetype": "npm:^3.0.2"
     "@types/ws": "npm:^8.18.1"
+    buffer-image-size: "npm:^0.6.4"
     entities: "npm:^7.0.1"
     whatwg-mimetype: "npm:^3.0.0"
-    ws: "npm:^8.18.3"
-  checksum: 10/81fabd8c630c2165eedd57b72f38b58e8891ff2ff543302c5bdf88860fc3b45b16decd27dabfc72739af6a927d711b04008c61b7e8090893da1fe5feba2dc80e
+    ws: "npm:^8.21.0"
+  checksum: 10/708a07432283cab0a29a10571b06cf27c0e30a933bf5f7fe948e18f78ce3875127b09fbed9aa7c6c5d23b06f4dad824eb73bc7a0cbe356febf5f66efb36aabce
   languageName: node
   linkType: hard
 
@@ -26210,13 +26220,13 @@ __metadata:
   linkType: hard
 
 "multer@npm:^2.4.0":
-  version: 2.4.0
-  resolution: "multer@npm:2.4.0"
+  version: 2.5.0
+  resolution: "multer@npm:2.5.0"
   dependencies:
     append-field: "npm:^1.0.0"
     busboy: "npm:^1.6.0"
     type-is: "npm:^1.6.18"
-  checksum: 10/644efb2eefa60079866c3ed9eb549e76c93bd642af2790c2579b224de9a4a4e0545d8e36aeafca21207445b6d2505e85779dca365351eb6f45fca8ce44a8e605
+  checksum: 10/c5b968f51f69df631059bb01088c15d0e670853fcfed029af3cf8167ef50f798bb6344143eb1884708bd0de34317d1b4696d74aa93c482390e7d291172958ae9
   languageName: node
   linkType: hard
 
@@ -26544,9 +26554,9 @@ __metadata:
   linkType: hard
 
 "nodemailer@npm:^10.0.0":
-  version: 10.0.13
-  resolution: "nodemailer@npm:10.0.13"
-  checksum: 10/eb1d2d7fd11d7609141a9ae03ad5ea3cd7c71a55eb5ab0d81dc324eddb1b41723cbb9080f423a3bdb3259f87eece8ba2ce514099b59cac631aa4bd68a1faa5f9
+  version: 10.2.1
+  resolution: "nodemailer@npm:10.2.1"
+  checksum: 10/1f7c755800fd184e848955aabf66d7f8d78d1476a62e009e10b9c59d763c63442e7f0945ad4f1a790408df98cdde3e4a611c98b180af73be81d0299840ddd4e7
   languageName: node
   linkType: hard
 
