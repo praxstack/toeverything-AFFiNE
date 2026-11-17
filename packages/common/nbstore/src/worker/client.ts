@@ -327,6 +327,13 @@ class WorkerDocStorage implements DocStorage {
     };
   }
 
+  subscribeDocDelete(callback: (docId: string) => void) {
+    const subscription = this.client
+      .ob$('docStorage.subscribeDocDelete')
+      .subscribe(callback);
+    return () => subscription.unsubscribe();
+  }
+
   connection = new WorkerDocConnection(this.client);
 }
 
@@ -396,6 +403,16 @@ class WorkerBlobConnection extends DummyConnection {
 
 class WorkerDocSync implements DocSync {
   constructor(private readonly client: OpClient<WorkerOps>) {}
+
+  get workspaceState$() {
+    return this.client.ob$('docSync.workspaceState');
+  }
+  createDoc(docId: string) {
+    return this.client.call('docSync.createDoc', docId);
+  }
+  refreshWorkspaceState() {
+    return this.client.call('docSync.refreshWorkspaceState');
+  }
 
   get state$() {
     return this.client.ob$('docSync.state');
@@ -519,6 +536,9 @@ class WorkerAwarenessSync implements AwarenessSync {
 
 class WorkerIndexerSync implements IndexerSync {
   constructor(private readonly client: OpClient<WorkerOps>) {}
+  get docTitles$() {
+    return this.client.ob$('indexerSync.docTitles');
+  }
 
   search<T extends keyof IndexerSchema, const O extends SearchOptions<T>>(
     table: T,
