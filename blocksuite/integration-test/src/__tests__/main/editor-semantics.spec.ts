@@ -1,3 +1,4 @@
+import { PeekViewExtension } from '@blocksuite/affine/components/peek';
 import {
   DatabaseBlockDataSource,
   databaseBlockProperties,
@@ -191,6 +192,83 @@ test.each([false, true])(
     detached.readonly = false;
   }
 );
+
+test.each([
+  { type: 'application/pdf', readonly: false, peeked: true },
+  { type: 'application/zip', readonly: false, peeked: false },
+  { type: 'application/pdf', readonly: true, peeked: true },
+  { type: 'application/zip', readonly: true, peeked: true },
+])(
+  'double-clicking a $type attachment (readonly: $readonly) opens the peek view: $peeked',
+  async ({ type, readonly, peeked }) => {
+    const peek = vi.fn();
+    await setupEditor('page', [PeekViewExtension({ peek })]);
+    const noteId = addNote(doc);
+    const id = doc.addBlock(
+      'affine:attachment',
+      { name: 'file', type, size: 1 },
+      noteId
+    );
+    await wait();
+    doc.readonly = readonly;
+    editor
+      .host!.view.getBlock(id)!
+      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    doc.readonly = false;
+    expect(peek).toHaveBeenCalledTimes(peeked ? 1 : 0);
+  }
+);
+
+test('typing into a sorted database title keeps editing the same row', async () => {
+  const noteId = addNote(doc);
+  const id = doc.addBlock('affine:database', {}, noteId);
+  const model = doc.getModelById(id) as DatabaseBlockModel;
+  const source = new DatabaseBlockDataSource(model, source => {
+    source.serviceSet(EditorHostKey, editor.host!);
+  });
+  const viewId = source.viewManager.viewAdd('table');
+  const titleId = source.properties$.value.find(
+    propertyId => source.propertyTypeGet(propertyId) === 'title'
+  )!;
+  const editedRow = source.rowAdd('end');
+  const otherRow = source.rowAdd('end');
+  doc.updateBlock(doc.getModelById(editedRow)!, { text: new Text('b') });
+  doc.updateBlock(doc.getModelById(otherRow)!, { text: new Text('c') });
+  source.viewDataUpdate(viewId, data => ({
+    ...data,
+    sort: {
+      manuallySort: [],
+      sortBy: [{ ref: { type: 'ref', name: titleId }, desc: false }],
+    },
+  }));
+  await wait();
+  const database = editor.host!.view.getBlock(id)!;
+  await database.updateComplete;
+  await wait();
+  const container = database.querySelector<
+    HTMLElement & { selectCurrentCell: (editing: boolean) => void }
+  >(
+    `dv-table-view-cell-container[data-row-id="${editedRow}"][data-column-id="${titleId}"]`
+  )!;
+
+  container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  container.selectCurrentCell(false);
+  await wait();
+  container.dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'z', bubbles: true, cancelable: true })
+  );
+  await wait();
+  await wait();
+
+  const titleCells = database.querySelectorAll<HTMLElement>(
+    `dv-table-view-cell-container[data-column-id="${titleId}"]`
+  );
+  expect(Array.from(titleCells, cell => cell.dataset.rowId)).toEqual([
+    editedRow,
+    otherRow,
+  ]);
+  expect(titleCells[0].dataset.editing).toBe('true');
+});
 
 test.each(['page', 'edgeless'] as const)(
   'table selection preserves its input owner in %s mode',
@@ -388,6 +466,23 @@ describe('markdown/list/paragraph/quote/code/link', () => {
     const model = note.children[0];
     expect(model.flavour).toBe('affine:code');
     expect((model as any).props.language).toBe('typescript');
+  });
+
+  test('spellcheck is disabled in code blocks only', async () => {
+    const { noteId, paragraphId } = await createParagraph('paragraph');
+    const codeId = doc.addBlock(
+      'affine:code',
+      { text: new Text('const value = 1;') },
+      noteId
+    );
+    await wait();
+
+    const editable = (blockId: string) =>
+      getRichTextByBlockId(blockId).querySelector<HTMLElement>(
+        '[contenteditable="true"]'
+      )!;
+    expect(editable(codeId).spellcheck).toBe(false);
+    expect(editable(paragraphId).closest('[spellcheck="false"]')).toBeNull();
   });
 
   test('inline markdown converts style and link attributes', async () => {
